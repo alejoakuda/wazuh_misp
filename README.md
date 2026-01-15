@@ -1,11 +1,8 @@
----
-
 * **Autor:** Alejandro Fernandes
 * **Alias:** Vernizus
 * **Rol:** Cybersecurity Analyst
 * **Especialidad:** Infraestructura y Optimización de SOC con herramientas opensource (Wazuh & MISP)
 
----
 ### Preparación de Wazuh
 
 Debes copiar los Scripts:
@@ -45,3 +42,4 @@ Si lo pegaras dentro asegurate de quitarle las etiquetas `<ossec_conf>`
     <alert_format>json</alert_format>
   </integration>
 </ossec_conf>
+
