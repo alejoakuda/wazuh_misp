@@ -1,0 +1,26 @@
+<!-- Reglas Para integrar MISP -->
+
+<group name="misp,malware,">
+  <rule id="100800" level="0">
+    <decoded_as>json</decoded_as>
+    <field name="integration">misp</field>
+    <description>MISP: Script de integracion ejecutado.</description>
+  </rule>
+
+  <rule id="100802" level="12">
+    <if_sid>100800</if_sid>
+    <field name="misp.found">1</field>
+    <description>MISP: Alerta! Hash detectado en base de datos de amenazas: $(misp.value)</description>
+    <mitre>
+      <id>T1566</id>
+    </mitre>
+    <group>misp_match,threat_intel,malware_detection</group>
+  </rule>
+
+  <rule id="100803" level="3">
+    <if_sid>100800</if_sid>
+    <field name="misp.found">0</field>
+    <description>MISP: Resultado de busqueda: $(misp.error)</description>
+    <group>misp_no_match</group>
+  </rule>
+</group>
