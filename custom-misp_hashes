@@ -1,5 +1,9 @@
 #!/bin/sh
-# Wrapper para la integracion de MISP siguiendo la logica nativa de Wazuh
+# -----------------------------------------------------------------------------
+# Wazuh Integration Wrapper for MISP
+# Autor: Alejandro Fernandes aka Vernizus
+# Propósito: Ejecutar la lógica de Python dentro del entorno seguro de Wazuh.
+# -----------------------------------------------------------------------------
 
 WPYTHON_BIN="framework/python/bin/python3"
 SCRIPT_PATH_NAME="$0"
