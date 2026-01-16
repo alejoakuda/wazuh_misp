@@ -26,11 +26,12 @@ pwd = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 LOG_FILE = f'{pwd}/logs/integrations.log'
 SOCKET_ADDR = f'{pwd}/queue/sockets/queue'
 
+# --- Funcion para registrar los errores
 def log_error(msg):
-    """Escribe en el log solo cuando algo falla"""
     with open(LOG_FILE, 'a') as f:
         f.write(f"{datetime.now()} MISP-ERROR: {msg}\n")
 
+# --- Funcion de Avistamientos
 def push_misp_sighting(url, apikey, attribute_id):
     try:
         sighting_url = f"{url.split('/attributes')[0]}/sightings/add"
@@ -42,14 +43,14 @@ def push_misp_sighting(url, apikey, attribute_id):
     except Exception as e:
         log_error(f"Excepcion en sighting: {str(e)}")
 
+# --- Funcion para consultar a MISP
 def request_misp_info(hashes, apikey, url):
     headers = {
         'Authorization': apikey,
         'Accept': 'application/json',
         'Content-Type': 'application/json'
     }
-
-    # Sanitización
+    # --- Sanitizacion
     valid_hashes = [h for h in hashes.values() if re.match(r"^[a-fA-F0-9]{32,64}$", str(h))]
     
     payload = {
@@ -58,6 +59,7 @@ def request_misp_info(hashes, apikey, url):
         "searchall": 1
     }
 
+    # --- Estructura base que siempre debe volver a Wazuh
     output = {'misp': {}, 'integration': 'misp'}
 
     for i in range(RETRIES + 1):
@@ -73,7 +75,6 @@ def request_misp_info(hashes, apikey, url):
                 if attributes:
                     attr = attributes[0]
                     event_id = attr.get('event_id')
-                    
                     output['misp'] = {
                         'found': 1,
                         'value': attr.get('value'),
@@ -83,50 +84,65 @@ def request_misp_info(hashes, apikey, url):
                     }
                     push_misp_sighting(url, apikey, attr.get('id'))
                     return output
+	    # --- Si no hay coincidencia, no loguea ---
                 else:
-                    # Hash limpio. No log.
                     output['misp'] = {'found': 0, 'error': 'Hash no encontrado'}
                     return output
+
+            # --- Si hay error de API (403, 500, etc.) ---
             else:
-                log_error(f"Error API MISP (Intento {i+1}). Status: {response.status_code} - Msg: {response.text}")
+                error_msg = f"Error API MISP: {response.status_code}"
+                log_error(f"{error_msg} - Msg: {response.text}")
+
+                # Permite reintentos, si el último falla, cae aqui
+                # Y Activa regla 100804
+                output['misp'] = {'found': 0, 'error': 'Error API', 'http_code': response.status_code}
 
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
             if i == RETRIES:
-                log_error(f"Fallo critico de red tras reintentos: {str(e)} - URL: {url}")
-                output['misp'] = {'found': 0, 'error': 'Fallo de conexion'}
+                log_error(f"Fallo critico de red: {str(e)}")
+                output['misp'] = {'found': 0, 'error': 'Error API', 'details': 'Fallo de conexion'}
             continue
         except Exception as e:
-            log_error(f"Error inesperado en consulta: {str(e)}")
-            output['misp'] = {'found': 0, 'error': 'Error interno script'}
+            log_error(f"Error inesperado: {str(e)}")
+            output['misp'] = {'found': 0, 'error': 'Error API', 'details': 'Error interno script'}
             break
 
     return output
 
 def main(args):
     try:
+	# --- Validar que Wazuh pase todos los parametros
         if len(args) < 4:
             log_error(f"Argumentos insuficientes. Recibidos: {len(args)}")
             sys.exit(1)
 
+	# --- Asignar Argumentos recibidor a variables limpias
         alert_file_location = args[1]
         apikey = args[2]
         hook_url = args[3]
 
+	# --- Leer json
         with open(alert_file_location) as f:
             alert_json = json.load(f)
 
+	# --- Extraer los hashes
         syscheck = alert_json.get('syscheck', {})
         hashes = {h: syscheck.get(f'{h}_after') for h in ['md5', 'sha1', 'sha256'] if syscheck.get(f'{h}_after')}
 
         if not hashes:
             return
 
+	# --- Consultar a MISP
         msg = request_misp_info(hashes, apikey, hook_url)
+	# --- Resultado
         send_msg(msg, alert_json.get('agent'))
 
     except Exception as e:
+	# --- Captura de errores
         log_error(f"Error critico en main: {str(e)}")
 
+# --- Funcion para comunicar a Wazuh la respuesta
 def send_msg(msg, agent=None):
     if not agent or agent['id'] == '000':
         string = '1:misp:{0}'.format(json.dumps(msg))
