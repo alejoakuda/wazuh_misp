@@ -45,7 +45,7 @@ Si lo pones dentro asegurate de quitarle las etiquetas `<ossec_conf>`.
   <!-- Integracion con MISP -->
   <integration>
     <name>custom-misp_hashes</name>
-    <rule_id>554,550</rule_id>
+    <rule_id>550, 554, 510, 515, 20001, 20005, 20006, 22601, 22602</rule_id>
     <hook_url>https://url:puerto/attributes/restSearch</hook_url>
     <api_key></api_key>
     <group>syscheck</group>
