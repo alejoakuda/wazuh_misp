@@ -15,19 +15,29 @@
   <rule id="100802" level="12">
     <if_sid>100800</if_sid>
     <field name="misp.found">1</field>
-    <description>MISP: ¡Amenaza Detectada! Evento: $(misp.info) | Hash: $(misp.value)</description>
+    <description>MISP: [Agente: $(misp.agent_id)] Amenaza en $(misp.local_path) | Evento: $(misp.info) | Hash: $(misp.value)</description>
     
     <info type="link">$(misp.permalink)</info>
     
     <mitre>
-      <id>T1566</id> <id>T1204.002</id> </mitre>
+      <id>T1566</id>
+      <id>T1204.002</id>
+    </mitre>
     <group>misp_match,threat_intel,malware_detection,pci_dss_10.6.1,gdpr_IV_35.7.d</group>
   </rule>
 
-  <rule id="100803" level="3">
+  <rule id="101999" level="0">
+    <if_sid>100802</if_sid>
+    <field name="misp.value">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</field>
+    <field name="misp.local_path" type="pcre2">\.(tmp|dat|log|cache|log1|log2|evtx)$</field>
+    <description>MISP: Silenciando hash vacío en archivos temporales</description>
+    <group>misp_noise_reduction</group>
+  </rule>
+
+  <rule id="100803" level="0">
     <if_sid>100800</if_sid>
     <field name="misp.found">0</field>
-    <description>MISP: Hash analizado y limpio: $(misp.error)</description>
+    <description>MISP: Hash analizado y limpio en $(misp.agent_name). Path: $(misp.local_path)</description>
     <group>misp_no_match</group>
   </rule>
 
