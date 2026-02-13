@@ -112,39 +112,59 @@ def request_misp_info(hashes, apikey, url):
 
 def main(args):
     try:
-	# --- Validar que Wazuh pase todos los parametros
+        # --- Validar argumentos ---
         if len(args) < 4:
             log_error(f"Argumentos insuficientes. Recibidos: {len(args)}")
             sys.exit(1)
 
-	# --- Asignar Argumentos recibidor a variables limpias
         alert_file_location = args[1]
         apikey = args[2]
         hook_url = args[3]
 
-	# --- Leer json
+        # --- Leer alerta original ---
         with open(alert_file_location) as f:
             alert_json = json.load(f)
 
-	# --- Extraer los hashes
+        # --- Extraer contexto local (Agente y Syscheck) ---
+        agent_info = alert_json.get('agent', {})
         syscheck = alert_json.get('syscheck', {})
+        
+        local_context = {
+            'path': syscheck.get('path', 'unknown'),
+            'source_rule': alert_json.get('rule', {}).get('id', 'unknown'),
+            'agent_id': agent_info.get('id'),
+            'agent_name': agent_info.get('name'),
+            'agent_ip': agent_info.get('ip', 'any')
+        }
+
+        # --- Extraer hashes para la consulta externa ---
         hashes = {h: syscheck.get(f'{h}_after') for h in ['md5', 'sha1', 'sha256'] if syscheck.get(f'{h}_after')}
 
         if not hashes:
             return
 
-	# --- Consultar a MISP
+        # --- Consultar a MISP (Manteniendo Privacidad) ---
         msg = request_misp_info(hashes, apikey, hook_url)
-	# --- Resultado
-        send_msg(msg, alert_json.get('agent'))
+
+        # --- INYECCIÓN DE CONTEXTO ---
+        # Añadimos los datos locales al JSON que vuelve a Wazuh
+        msg['misp']['local_path'] = local_context['path']
+        msg['misp']['source_rule'] = local_context['source_rule']
+        msg['misp']['agent_id'] = local_context['agent_id']
+        msg['misp']['agent_name'] = local_context['agent_name']
+        msg['misp']['agent_ip'] = local_context['agent_ip']
+
+        # --- Resultado ---
+        # Enviamos el paquete completo
+        send_msg(msg, agent_info)
 
     except Exception as e:
-	# --- Captura de errores
         log_error(f"Error critico en main: {str(e)}")
 
 # --- Funcion para comunicar a Wazuh la respuesta
 def send_msg(msg, agent=None):
     if not agent or agent['id'] == '000':
+        # Si la alerta se originó en el manager o no hay agente
         string = '1:misp:{0}'.format(json.dumps(msg))
     else:
         location = '[{0}] ({1}) {2}'.format(agent['id'], agent['name'], agent['ip'] if 'ip' in agent else 'any')
@@ -157,7 +177,7 @@ def send_msg(msg, agent=None):
         sock.send(string.encode())
         sock.close()
     except Exception as e:
-        log_error(f"Error de socket (no se pudo enviar alerta a Wazuh): {str(e)}")
+        log_error(f"Error de socket: {str(e)}")
 
 if __name__ == '__main__':
     main(sys.argv)
