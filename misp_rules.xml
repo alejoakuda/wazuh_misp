@@ -49,3 +49,35 @@
   </rule>
 
 </group>
+
+<!-- Opcionales para manejo de vida de un archivo evitando ruido -->
+
+<group name="syscheck,critical_files,security_by_design">
+
+  <rule id="101100" level="0" overwrite="yes">
+    <if_sid>550, 553, 554</if_sid>
+    <description>FIM: Silencio global para evitar saturación de logs e integraciones.</description>
+  </rule>
+
+  <rule id="101150" level="0">
+    <if_sid>101100</if_sid>
+    <field name="syscheck.path">\\system32\\catroot|\\system32\\CatRoot2|\\AppData\\Local\\Temp|\\Windows\\Temp|\.tmp$|\.dat$|\.blf$|\.regtrans-ms$|\.crdownload$</field>
+    <field name="syscheck.uname_after">^TrustedInstaller$|^SYSTEM$|^NETWORK SERVICE$</field>
+    <description>FIM: Exclusion masiva de ruido de sistema (No enviar a MISP).</description>
+  </rule>
+
+  <rule id="101101" level="8">
+    <if_sid>101100</if_sid>
+    <field name="syscheck.path" type="pcre2">(?i)system32\\drivers\\etc\\(hosts|lmhosts|networks|protocol|services)|system32\\config\\(SAM|SYSTEM|SECURITY|RegBack|TxR)|system32\\(cmd\.exe|powershell\.exe|wscript\.exe|cscript\.exe|catroot|catroot2|winevt\\Logs|wbem|sru|prefetch|debug)|CurrentVersion\\Run|Microsoft\\Windows\\Start Menu\\Programs\\Startup|system32\\tasks|ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup|AppData\\(Roaming|Local)\\(Temp|Microsoft\\Windows\\Start Menu\\Programs\\Startup|Shell|Vault)|spool\\drivers\\color|windows\\(system\.ini|win\.ini|temp)</field>
+    <description>FIM: Cambio en activo crítico de Windows detectado.</description>
+    <group>pci_dss_10.6.1,gdpr_IV_35.7.d,misp_priority</group>
+  </rule>
+
+  <rule id="101102" level="8">
+    <if_sid>101100</if_sid>
+    <field name="syscheck.path" type="pcre2">^/etc/(passwd|shadow|group|sudoers|sshd_config|crontab|cron\..*|rc\.local|init\.d/.*|systemd/system/.*|modules|modprobe\.d/.*|profile|bash\.bashrc|environment|ld\.so\..*|securetty|hosts\..*|nsswitch\.conf|resolv\.conf|sysctl\.conf|security/.*|pam\.d/.*|xdg/autostart/.*|nginx/.*|apache2/.*|httpd/.*|mysql/.*|postgresql/.*|redis/.*|docker/.*|kernel/.*)|^/(root|home/[^/]+)/(\.bashrc|\.profile|\.ssh/.*|\.config/autostart/.*)|^/(bin|sbin|usr/bin|usr/sbin|usr/local/bin|usr/local/sbin|opt|boot|lib/modules)/.*|^/var/(log/.*|spool/cron/.*|lib/docker/.*)|^/tmp/.*|^/var/tmp/.*|^/dev/shm/.*</field>
+    <description>FIM: Cambio en activo crítico de Linux detectado.</description>
+    <group>pci_dss_10.6.1,gdpr_IV_35.7.d,misp_priority</group>
+  </rule>
+
+</group>
