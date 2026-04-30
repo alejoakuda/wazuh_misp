@@ -4,7 +4,7 @@
   Propósito: Detectar coincidencias de hashes enviadas por integración MISP.
 -->
 
-<group name="misp,malware,threat_intel">
+<group name="misp,malware,threat_intel,critical_files,">
 
   <rule id="100800" level="0">
     <decoded_as>json</decoded_as>
@@ -26,14 +26,6 @@
     <group>misp_match,threat_intel,malware_detection,pci_dss_10.6.1,gdpr_IV_35.7.d</group>
   </rule>
 
-  <rule id="101999" level="0">
-    <if_sid>100802</if_sid>
-    <field name="misp.value">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</field>
-    <field name="misp.local_path" type="pcre2">\.(tmp|dat|log|cache|log1|log2|evtx)$</field>
-    <description>MISP: Silenciando hash vacío en archivos temporales</description>
-    <group>misp_noise_reduction</group>
-  </rule>
-
   <rule id="100803" level="0">
     <if_sid>100800</if_sid>
     <field name="misp.found">0</field>
@@ -48,36 +40,40 @@
     <group>misp_error</group>
   </rule>
 
-</group>
+  <rule id="100805" level="0">
+    <if_sid>100802</if_sid>
+    <field name="misp.value">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</field>
+    <field name="misp.local_path" type="pcre2">\.(tmp|dat|log|cache|log1|log2|evtx)$</field>
+    <description>MISP: Silenciando hash vacío en archivos temporales</description>
+    <group>misp_noise_reduction</group>
+  </rule>
 
-<!-- Opcionales para manejo de vida de un archivo evitando ruido -->
-
-<group name="syscheck,critical_files,security_by_design">
-
-  <rule id="101100" level="0" overwrite="yes">
+  <!-- Opcionales para manejo de vida de un archivo evitando ruido -->
+  <rule id="100806" level="3">
     <if_sid>550, 553, 554</if_sid>
-    <description>FIM: Silencio global para evitar saturación de logs e integraciones.</description>
+    <options>no_full_log</options>
+    <description>FIM: Regla base para correlación</description>
   </rule>
 
-  <rule id="101150" level="0">
-    <if_sid>101100</if_sid>
-    <field name="syscheck.path">\\system32\\catroot|\\system32\\CatRoot2|\\AppData\\Local\\Temp|\\Windows\\Temp|\.tmp$|\.dat$|\.blf$|\.regtrans-ms$|\.crdownload$</field>
-    <field name="syscheck.uname_after">^TrustedInstaller$|^SYSTEM$|^NETWORK SERVICE$</field>
-    <description>FIM: Exclusion masiva de ruido de sistema (No enviar a MISP).</description>
+  <rule id="100807" level="0">
+    <if_sid>100806</if_sid>
+    <field name="syscheck.path">\\system32\\catroot|\\system32\\CatRoot2|\\AppData\\Local\\Temp|\\Windows\\Temp|\.tmp$|\.dat$|\.blf$|\.regtrans-ms$|\.crdownload$|\.etl$|\.log$</field>
+    <field name="syscheck.uname_after">^TrustedInstaller$|^SYSTEM$|^NETWORK SERVICE$|^LocalService$</field>
+    <field name="syscheck.path" type="pcre2">!(\.exe$|\.dll$|\.ps1$|\.bat$|\.vbs$)</field>
+    <description>FIM: Exclusión masiva de ruido (Archivos de datos solo).</description>
   </rule>
 
-  <rule id="101101" level="8">
-    <if_sid>101100</if_sid>
+  <rule id="100808" level="8">
+    <if_sid>100806</if_sid>
     <field name="syscheck.path" type="pcre2">(?i)system32\\drivers\\etc\\(hosts|lmhosts|networks|protocol|services)|system32\\config\\(SAM|SYSTEM|SECURITY|RegBack|TxR)|system32\\(cmd\.exe|powershell\.exe|wscript\.exe|cscript\.exe|catroot|catroot2|winevt\\Logs|wbem|sru|prefetch|debug)|CurrentVersion\\Run|Microsoft\\Windows\\Start Menu\\Programs\\Startup|system32\\tasks|ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup|AppData\\(Roaming|Local)\\(Temp|Microsoft\\Windows\\Start Menu\\Programs\\Startup|Shell|Vault)|spool\\drivers\\color|windows\\(system\.ini|win\.ini|temp)</field>
-    <description>FIM: Cambio en activo crítico de Windows detectado.</description>
+    <description>FIM: Detectado cambio en archivo crítico de Windows.</description>
     <group>pci_dss_10.6.1,gdpr_IV_35.7.d,misp_priority</group>
   </rule>
 
-  <rule id="101102" level="8">
-    <if_sid>101100</if_sid>
+  <rule id="100809" level="8">
+    <if_sid>100806</if_sid>
     <field name="syscheck.path" type="pcre2">^/etc/(passwd|shadow|group|sudoers|sshd_config|crontab|cron\..*|rc\.local|init\.d/.*|systemd/system/.*|modules|modprobe\.d/.*|profile|bash\.bashrc|environment|ld\.so\..*|securetty|hosts\..*|nsswitch\.conf|resolv\.conf|sysctl\.conf|security/.*|pam\.d/.*|xdg/autostart/.*|nginx/.*|apache2/.*|httpd/.*|mysql/.*|postgresql/.*|redis/.*|docker/.*|kernel/.*)|^/(root|home/[^/]+)/(\.bashrc|\.profile|\.ssh/.*|\.config/autostart/.*)|^/(bin|sbin|usr/bin|usr/sbin|usr/local/bin|usr/local/sbin|opt|boot|lib/modules)/.*|^/var/(log/.*|spool/cron/.*|lib/docker/.*)|^/tmp/.*|^/var/tmp/.*|^/dev/shm/.*</field>
-    <description>FIM: Cambio en activo crítico de Linux detectado.</description>
+    <description>FIM: Detectado cambio en archivo crítico de Linux.</description>
     <group>pci_dss_10.6.1,gdpr_IV_35.7.d,misp_priority</group>
   </rule>
-
 </group>
