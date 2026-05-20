@@ -1,21 +1,50 @@
 <!--
   Reglas personalizadas para correlación Wazuh + MISP
   Autor: Alejandro Fernandes aka Vernizus
-  Propósito: Detectar coincidencias de hashes enviadas por integración MISP.
+  Propósito: Detectar coincidencias de hashes enviadas por integración MISP
+             y alertar sobre cambios en rutas críticas del sistema.
 -->
 
- <group name="misp,malware,threat_intel">
+<group name="misp,malware,threat_intel">
 
+  <!-- Base: cualquier evento de integración MISP -->
   <rule id="100800" level="0">
     <decoded_as>json</decoded_as>
     <field name="integration">misp</field>
-    <description>MISP: Script de integracion ejecutado.</description>
+    <description>MISP: Script de integración ejecutado.</description>
   </rule>
 
-  <rule id="100802" level="12">
+  <!-- Nivel 0: hash encontrado. No genera alerta propia. Los hijos deciden el nivel. -->
+  <!-- DISEÑO: este nodo en level=0 es necesario para que las reglas hijas puedan
+       suprimir o escalar sin que el padre ya haya disparado una alerta de nivel alto. -->
+  <rule id="100801" level="0">
     <if_sid>100800</if_sid>
     <field name="misp.found">1</field>
-    <description>MISP: [Agente: $(misp.agent_id)] Amenaza en $(misp.local_path) | Evento: $(misp.info) | Hash: $(misp.value)</description>
+    <description>MISP: Hash encontrado - evaluando estado del IoC.</description>
+  </rule>
+
+  <!-- Supresión: hash vacío SHA256. Nunca es un IoC válido. Cubre TODAS las extensiones. -->
+  <rule id="100805" level="0">
+    <if_sid>100801</if_sid>
+    <field name="misp.value">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</field>
+    <description>MISP: Suprimido - hash vacío (archivo inaccesible o sin contenido).</description>
+    <group>misp_noise_reduction</group>
+  </rule>
+
+  <!-- Supresión: IoC marcado como expirado en MISP (campo expired=1 del script) -->
+  <rule id="100806" level="0">
+    <if_sid>100801</if_sid>
+    <field name="misp.expired">1</field>
+    <description>MISP: IoC expirado ignorado - $(misp.value).</description>
+    <group>misp_noise_reduction</group>
+  </rule>
+
+  <!-- Alerta máxima: IoC activo y confirmado para detección (to_ids=1, no expirado) -->
+  <rule id="100807" level="14">
+    <if_sid>100801</if_sid>
+    <field name="misp.expired">0</field>
+    <field name="misp.to_ids">1</field>
+    <description>MISP: [ACTIVO] [$(misp.agent_name)] Amenaza en $(misp.local_path) | $(misp.info) | $(misp.comment) | Hash: $(misp.value)</description>
     <info type="link">$(misp.permalink)</info>
     <mitre>
       <id>T1566</id>
@@ -24,62 +53,87 @@
     <group>misp_match,threat_intel,malware_detection,pci_dss_10.6.1,gdpr_IV_35.7.d</group>
   </rule>
 
-
-  <rule id="100805" level="0">
-    <if_sid>100802</if_sid>
-    <field name="misp.value">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</field>
-    <field name="misp.local_path" type="pcre2">\.(tmp|dat|log|cache|log1|log2|evtx)$</field>
-    <description>MISP: Silenciando hash vacío en archivos temporales</description>
-    <group>misp_noise_reduction</group>
+  <!-- Alerta media: coincidencia encontrada pero to_ids=0 (no marcado para detección activa) -->
+  <rule id="100802" level="10">
+    <if_sid>100801</if_sid>
+    <field name="misp.expired">0</field>
+    <field name="misp.to_ids">0</field>
+    <description>MISP: [$(misp.agent_name)] Coincidencia no confirmada en $(misp.local_path) | $(misp.info) | Hash: $(misp.value)</description>
+    <info type="link">$(misp.permalink)</info>
+    <mitre>
+      <id>T1566</id>
+      <id>T1204.002</id>
+    </mitre>
+    <group>misp_match,threat_intel,pci_dss_10.6.1,gdpr_IV_35.7.d</group>
   </rule>
 
-
+  <!-- Sin coincidencia: hash limpio -->
   <rule id="100803" level="0">
     <if_sid>100800</if_sid>
     <field name="misp.found">0</field>
-    <description>MISP: Hash analizado y limpio en $(misp.agent_name). Path: $(misp.local_path)</description>
+    <description>MISP: Hash limpio en $(misp.agent_name). Path: $(misp.local_path)</description>
     <group>misp_no_match</group>
   </rule>
 
+  <!-- Error de comunicación con la API MISP -->
   <rule id="100804" level="5">
     <if_sid>100800</if_sid>
     <field name="misp.error">Error API</field>
-    <description>MISP: Error en la comunicación con el servidor MISP.</description>
+    <description>MISP: Error de comunicación con el servidor MISP.</description>
     <group>misp_error</group>
   </rule>
 
 </group>
 
 
-<group name="syscheck,critical_files,security_by_design">
+<group name="syscheck,critical_files">
 
-  <rule id="101100" level="3">
-    <if_sid>550, 553, 554</if_sid>
-    <options>no_full_log</options>
-    <description>FIM: Base rule for correlation (Hidden from High-Level Dashboards).</description>
-  </rule>
-
+  <!-- Supresión de ruido FIM: archivos de datos/caché/DB del sistema en rutas conocidas,
+       modificados por procesos privilegiados del SO. No aplica a ejecutables ni código. -->
   <rule id="101150" level="0">
-    <if_sid>101100</if_sid>
-    <field name="syscheck.path">\\system32\\catroot|\\system32\\CatRoot2|\\AppData\\Local\\Temp|\\Windows\\Temp|\.tmp$|\.dat$|\.blf$|\.regtrans-ms$|\.crdownload$|\.etl$|\.log$</field>
-    <field name="syscheck.uname_after">^TrustedInstaller$|^SYSTEM$|^NETWORK SERVICE$|^LocalService$</field>
-    <field name="syscheck.path" type="pcre2">!(\.exe$|\.dll$|\.ps1$|\.bat$|\.vbs$)</field>
-    <description>FIM: Massive noise exclusion (Data files only).</description>
+    <if_sid>550, 553, 554</if_sid>
+    <field name="syscheck.uname_after" type="pcre2">^(TrustedInstaller|SYSTEM|NETWORK SERVICE|LOCAL SERVICE|LocalService)$</field>
+    <field name="syscheck.path" type="pcre2">(?i)(\\system32\\(catroot2?|sru|prefetch|winevt\\Logs|wbem|debug)|\\AppData\\Local\\(Temp|Google|Microsoft\\Edge|Microsoft\\Windows\\INetCache|BraveSoftware|Discord|Slack|Opera|Chromium)|\\Windows\\Temp|\\WpSystem|\\MicrosoftEdgeBackups|\.(dxcache-wal|dxcache-shm|db-wal|db-shm|atldb|atldb-journal|sqlite-journal|db|sql|regtrans-ms|blf|tgs|etl|log1|log2|tmp|dmp|lock|aodl|state|checkpoint|winmd|catalogitem|pst|bin|pri|crdownload|old|lnk|rdp|buildwithskipanalyzers|lst|fmp12|vhdx|img|iso|pdf|docx|zip|txt|xml)$)</field>
+    <field name="syscheck.path" type="pcre2" negate="yes">(?i)\.(exe|dll|ps1|bat|cmd|vbs|msi|sys|drv|js|php|cs|service)$</field>
+    <description>FIM: Cambio en datos de caché o sistema por proceso privilegiado - suprimido.</description>
+    <group>fim_noise_reduction</group>
   </rule>
 
-  <rule id="101101" level="8">
-    <if_sid>101100</if_sid>
-    <field name="syscheck.path" type="pcre2">(?i)system32\\drivers\\etc\\(hosts|lmhosts|networks|protocol|services)|system32\\config\\(SAM|SYSTEM|SECURITY|RegBack|TxR)|system32\\(cmd\.exe|powershell\.exe|wscript\.exe|cscript\.exe|catroot|catroot2|winevt\\Logs|wbem|sru|prefetch|debug)|CurrentVersion\\Run|Microsoft\\Windows\\Start Menu\\Programs\\Startup|system32\\tasks|ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup|AppData\\(Roaming|Local)\\(Temp|Microsoft\\Windows\\Start Menu\\Programs\\Startup|Shell|Vault)|spool\\drivers\\color|windows\\(system\.ini|win\.ini|temp)</field>
-    <description>FIM: Critical Windows file change detected.</description>
-    <group>pci_dss_10.6.1,gdpr_IV_35.7.d,misp_priority</group>
+  <!-- Hash vacío + extensión sospechosa: archivo inaccesible o vacío pero de tipo ejecutable
+       o código. No consulta MISP pero deja trazabilidad en nivel bajo. -->
+  <rule id="101153" level="4">
+    <if_sid>550, 553, 554</if_sid>
+    <field name="syscheck.sha256_after">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</field>
+    <field name="syscheck.path" type="pcre2">(?i)\.(dll|exe|sys|drv|msi|bat|cmd|ps1|vbs|js|php|cs|service|config|json|appxbundle)$|(?<=[\\/])[^\\/\.]+$</field>
+    <description>FIM: Archivo vacío o inaccesible con extensión sospechosa - $(syscheck.path)</description>
+    <group>fim_empty_suspicious</group>
   </rule>
 
-  <rule id="101102" level="8">
-    <if_sid>101100</if_sid>
-    <field name="syscheck.path" type="pcre2">^/etc/(passwd|shadow|group|sudoers|sshd_config|crontab|cron\..*|rc\.local|init\.d/.*|systemd/system/.*|modules|modprobe\.d/.*|profile|bash\.bashrc|environment|ld\.so\..*|securetty|hosts\..*|nsswitch\.conf|resolv\.conf|sysctl\.conf|security/.*|pam\.d/.*|xdg/autostart/.*|nginx/.*|apache2/.*|httpd/.*|mysql/.*|postgresql/.*|redis/.*|docker/.*|kernel/.*)|^/(root|home/[^/]+)/(\.bashrc|\.profile|\.ssh/.*|\.config/autostart/.*)|^/(bin|sbin|usr/bin|usr/sbin|usr/local/bin|usr/local/sbin|opt|boot|lib/modules)/.*|^/var/(log/.*|spool/cron/.*|lib/docker/.*)|^/tmp/.*|^/var/tmp/.*|^/dev/shm/.*</field>
-    <description>FIM: Critical Linux file change detected.</description>
-    <group>pci_dss_10.6.1,gdpr_IV_35.7.d,misp_priority</group>
+  <!-- Hash vacío + extensión segura (datos, caché, documentos): suprimido sin trazabilidad. -->
+  <rule id="101154" level="0">
+    <if_sid>550, 553, 554</if_sid>
+    <field name="syscheck.sha256_after">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</field>
+    <field name="syscheck.path" type="pcre2" negate="yes">(?i)\.(dll|exe|sys|drv|msi|bat|cmd|ps1|vbs|js|php|cs|service|config|json|appxbundle)$|(?<=[\\/])[^\\/\.]+$</field>
+    <description>FIM: Archivo vacío o inaccesible con extensión segura - suprimido.</description>
+    <group>fim_noise_reduction</group>
   </rule>
 
+  <!-- Cambio crítico en Windows: persistencia, credenciales, ejecutables del sistema,
+       herramientas de administración y configuración sensible. Sin rutas temporales. -->
+  <rule id="101101" level="10">
+    <if_sid>550, 553, 554</if_sid>
+    <field name="syscheck.path" type="pcre2">(?i)(\\system32\\config\\(SAM|SYSTEM|SECURITY|RegBack)|CurrentVersion\\(Run|RunOnce|RunServices|Winlogon|Image File Execution Options)|\\Start Menu\\Programs\\Startup|\\system32\\tasks\\|ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup|\\AppData\\(Roaming|Local)\\Microsoft\\Windows\\Start Menu\\Programs\\Startup|\\(Shell|Vault)\\|\\system32\\(cmd\.exe|powershell\.exe|wscript\.exe|cscript\.exe|mshta\.exe|regsvr32\.exe|rundll32\.exe|certutil\.exe|bitsadmin\.exe)|\\system32\\drivers\\etc\\(hosts|lmhosts|networks|protocol|services)|\\windows\\(system\.ini|win\.ini)|\\spool\\drivers\\color\\)</field>
+    <description>FIM: Cambio crítico en Windows - $(syscheck.path)</description>
+    <group>pci_dss_10.6.1,gdpr_IV_35.7.d,misp_priority,windows_critical</group>
+  </rule>
 
-</group> 
+  <!-- Cambio crítico en Linux: autenticación, arranque, sudo, SSH, cron, servicios,
+       configuración de red y binarios del sistema. Sin /tmp, /var/log ni /dev/shm. -->
+  <rule id="101102" level="10">
+    <if_sid>550, 553, 554</if_sid>
+    <field name="syscheck.path" type="pcre2">^(/etc/(passwd|shadow|gshadow|group|sudoers(\.d/[^/]+)?|sshd?_config(\.d/[^/]+)?|crontab|cron\.[^/]+|rc\.local|init\.d/[^/]+|systemd/system/[^/]+|pam\.d/[^/]+|security/[^/]+|profile(\.d/[^/]+)?|bash\.bashrc|environment|ld\.so\.[^/]+|securetty|hosts\.(allow|deny)|nsswitch\.conf|resolv\.conf|sysctl\.conf|nginx/[^/]+|apache2/[^/]+|httpd/[^/]+|mysql/[^/]+|postgresql/[^/]+|redis/[^/]+|docker/[^/]+|modules(\.d/[^/]+)?|modprobe\.d/[^/]+|kernel/[^/]+)|(root|home/[^/]+)/\.ssh/[^/]+|(root|home/[^/]+)/(\.bashrc|\.profile|\.bash_profile|\.config/autostart/[^/]+)|/(bin|sbin|usr/bin|usr/sbin|usr/local/bin|usr/local/sbin)/[^/]+|/boot/[^/]+|/lib/modules/|/var/spool/cron/[^/]+)</field>
+    <description>FIM: Cambio crítico en Linux - $(syscheck.path)</description>
+    <group>pci_dss_10.6.1,gdpr_IV_35.7.d,misp_priority,linux_critical</group>
+  </rule>
+
+</group>

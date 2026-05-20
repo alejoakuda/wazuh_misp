@@ -18,6 +18,9 @@ TIMEOUT = 10
 RETRIES = 2
 VERIFY_SSL = False   # Cambiar a True si tienes certificados válidos en MISP
 SOURCE_TAG = "Wazuh-SOC"
+
+# Hash vacío SHA256: archivo inaccesible o sin contenido, nunca es un IoC válido
+EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 # ==========================================
 
 # Variables de entorno Wazuh
@@ -56,7 +59,8 @@ def request_misp_info(hashes, apikey, url):
     payload = {
         "returnFormat": "json",
         "value": valid_hashes,
-        "searchall": 1
+        "searchall": 1,
+        "to_ids": 1
     }
 
     # --- Estructura base que siempre debe volver a Wazuh
@@ -73,14 +77,26 @@ def request_misp_info(hashes, apikey, url):
                 attributes = inner_data.get('Attribute', [])
 
                 if attributes:
-                    attr = attributes[0]
+                    # Preferir atributo no expirado; si todos expirados, coger el primero
+                    def is_expired(a):
+                        return any('Expirado' in t.get('name', '') for t in a.get('Tag', []))
+
+                    attr = next((a for a in attributes if not is_expired(a)), attributes[0])
+                    expired = is_expired(attr)
                     event_id = attr.get('event_id')
+                    tags = [t.get('name') for t in attr.get('Tag', [])]
                     output['misp'] = {
                         'found': 1,
                         'value': attr.get('value'),
                         'event_id': event_id,
                         'info': attr.get('Event', {}).get('info', 'Amenaza detectada'),
-                        'permalink': f"{url.split('/attributes')[0]}/events/view/{event_id}"
+                        'permalink': f"{url.split('/attributes')[0]}/events/view/{event_id}",
+                        'category': attr.get('category'),
+                        'comment': attr.get('comment'),
+                        'to_ids': 1 if attr.get('to_ids') else 0,
+                        'expired': 1 if expired else 0,
+                        'tags': ', '.join(tags) if tags else None,
+                        'attribute_timestamp': attr.get('timestamp')
                     }
                     push_misp_sighting(url, apikey, attr.get('id'))
                     return output
@@ -141,6 +157,11 @@ def main(args):
         hashes = {h: syscheck.get(f'{h}_after') for h in ['md5', 'sha1', 'sha256'] if syscheck.get(f'{h}_after')}
 
         if not hashes:
+            return
+
+        # Archivo inaccesible o vacío: si sha256 es el hash vacío el archivo no tiene contenido,
+        # no tiene valor como IoC. Evitar llamada innecesaria a MISP.
+        if hashes.get('sha256') == EMPTY_SHA256:
             return
 
         # --- Consultar a MISP (Manteniendo Privacidad) ---
