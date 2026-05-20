@@ -100,12 +100,11 @@
   </rule>
 
   <!-- Hash vacío + extensión sospechosa: archivo inaccesible o vacío pero de tipo ejecutable
-       o código. No consulta MISP pero deja trazabilidad en nivel bajo. -->
   <rule id="101153" level="4">
     <if_sid>550, 553, 554</if_sid>
     <field name="syscheck.sha256_after">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</field>
-    <field name="syscheck.path" type="pcre2">(?i)\.(dll|exe|sys|drv|msi|bat|cmd|ps1|vbs|js|php|cs|service|config|json|appxbundle)$|(?<=[\\/])[^\\/\.]+$</field>
-    <description>FIM: Archivo vacío o inaccesible con extensión sospechosa - $(syscheck.path)</description>
+    <field name="syscheck.path" type="pcre2">(?i)\.(dll|exe|sys|drv|msi|bat|cmd|ps1|vbs|js|php|cs|service|config|json|appxbundle)$|/[^\\/\.]+$|\\[^\\/\.]+$</field>
+    <description>FIM: Archivo vacio o inaccesible con extension sospechosa - $(syscheck.path)</description>
     <group>fim_empty_suspicious</group>
   </rule>
 
@@ -113,11 +112,11 @@
   <rule id="101154" level="0">
     <if_sid>550, 553, 554</if_sid>
     <field name="syscheck.sha256_after">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</field>
-    <field name="syscheck.path" type="pcre2" negate="yes">(?i)\.(dll|exe|sys|drv|msi|bat|cmd|ps1|vbs|js|php|cs|service|config|json|appxbundle)$|(?<=[\\/])[^\\/\.]+$</field>
-    <description>FIM: Archivo vacío o inaccesible con extensión segura - suprimido.</description>
+    <field name="syscheck.path" type="pcre2" negate="yes">(?i)\.(dll|exe|sys|drv|msi|bat|cmd|ps1|vbs|js|php|cs|service|config|json|appxbundle)$|/[^\\/\.]+$|\\[^\\/\.]+$</field>
+    <description>FIM: Archivo vacio o inaccesible con extension segura - suprimido.</description>
     <group>fim_noise_reduction</group>
   </rule>
-
+    
   <!-- Cambio crítico en Windows: persistencia, credenciales, ejecutables del sistema,
        herramientas de administración y configuración sensible. Sin rutas temporales. -->
   <rule id="101101" level="10">
