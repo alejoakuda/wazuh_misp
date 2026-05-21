@@ -97,7 +97,7 @@
     <group>fim_noise_reduction</group>
   </rule>
 
-  <!-- Hash vacío + extensión sospechosa: archivo inaccesible o vacío pero de tipo ejecutable
+  <!-- Hash vacío + extensión sospechosa: archivo inaccesible o vacío pero de tipo ejecutable -->
   <rule id="101153" level="4">
     <if_sid>550, 553, 554</if_sid>
     <field name="syscheck.sha256_after">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</field>
