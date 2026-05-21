@@ -44,8 +44,7 @@
     <if_sid>100801</if_sid>
     <field name="misp.expired">0</field>
     <field name="misp.to_ids">1</field>
-    <description>MISP: [ACTIVO] [$(misp.agent_name)] Amenaza en $(misp.local_path) | $(misp.info) | $(misp.comment) | Hash: $(misp.value)</description>
-    <info type="link">$(misp.permalink)</info>
+    <description>MISP: [ACTIVO] [$(misp.agent_name)] Amenaza en $(misp.local_path) | $(misp.info) | $(misp.comment) | Hash: $(misp.value) | $(misp.permalink)</description>
     <mitre>
       <id>T1566</id>
       <id>T1204.002</id>
@@ -58,8 +57,7 @@
     <if_sid>100801</if_sid>
     <field name="misp.expired">0</field>
     <field name="misp.to_ids">0</field>
-    <description>MISP: [$(misp.agent_name)] Coincidencia no confirmada en $(misp.local_path) | $(misp.info) | Hash: $(misp.value)</description>
-    <info type="link">$(misp.permalink)</info>
+    <description>MISP: [$(misp.agent_name)] Coincidencia no confirmada en $(misp.local_path) | $(misp.info) | Hash: $(misp.value) | $(misp.permalink)</description>
     <mitre>
       <id>T1566</id>
       <id>T1204.002</id>
