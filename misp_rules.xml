@@ -88,7 +88,7 @@
 
   <!-- Supresión de ruido FIM: archivos de datos/caché/DB del sistema en rutas conocidas,
        modificados por procesos privilegiados del SO. No aplica a ejecutables ni código. -->
-  <rule id="101150" level="0">
+  <rule id="100840" level="0">
     <if_sid>550, 553, 554</if_sid>
     <field name="syscheck.uname_after" type="pcre2">^(TrustedInstaller|SYSTEM|NETWORK SERVICE|LOCAL SERVICE|LocalService)$</field>
     <field name="syscheck.path" type="pcre2">(?i)(\\system32\\(catroot2?|sru|prefetch|winevt\\Logs|wbem|debug)|\\AppData\\Local\\(Temp|Google|Microsoft\\Edge|Microsoft\\Windows\\INetCache|BraveSoftware|Discord|Slack|Opera|Chromium)|\\Windows\\Temp|\\WpSystem|\\MicrosoftEdgeBackups|\.(dxcache-wal|dxcache-shm|db-wal|db-shm|atldb|atldb-journal|sqlite-journal|db|sql|regtrans-ms|blf|tgs|etl|log1|log2|tmp|dmp|lock|aodl|state|checkpoint|winmd|catalogitem|pst|bin|pri|crdownload|old|lnk|rdp|buildwithskipanalyzers|lst|fmp12|vhdx|img|iso|pdf|docx|zip|txt|xml)$)</field>
@@ -98,7 +98,7 @@
   </rule>
 
   <!-- Hash vacío + extensión sospechosa: archivo inaccesible o vacío pero de tipo ejecutable -->
-  <rule id="101153" level="4">
+  <rule id="100841" level="4">
     <if_sid>550, 553, 554</if_sid>
     <field name="syscheck.sha256_after">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</field>
     <field name="syscheck.path" type="pcre2">(?i)\.(dll|exe|sys|drv|msi|bat|cmd|ps1|vbs|js|php|cs|service|config|json|appxbundle)$|/[^\\/\.]+$|\\[^\\/\.]+$</field>
@@ -107,7 +107,7 @@
   </rule>
 
   <!-- Hash vacío + extensión segura (datos, caché, documentos): suprimido sin trazabilidad. -->
-  <rule id="101154" level="0">
+  <rule id="100842" level="0">
     <if_sid>550, 553, 554</if_sid>
     <field name="syscheck.sha256_after">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</field>
     <field name="syscheck.path" type="pcre2" negate="yes">(?i)\.(dll|exe|sys|drv|msi|bat|cmd|ps1|vbs|js|php|cs|service|config|json|appxbundle)$|/[^\\/\.]+$|\\[^\\/\.]+$</field>
@@ -117,7 +117,7 @@
     
   <!-- Cambio crítico en Windows: persistencia, credenciales, ejecutables del sistema,
        herramientas de administración y configuración sensible. Sin rutas temporales. -->
-  <rule id="101101" level="10">
+  <rule id="100850" level="10">
     <if_sid>550, 553, 554</if_sid>
     <field name="syscheck.path" type="pcre2">(?i)(\\system32\\config\\(SAM|SYSTEM|SECURITY|RegBack)|CurrentVersion\\(Run|RunOnce|RunServices|Winlogon|Image File Execution Options)|\\Start Menu\\Programs\\Startup|\\system32\\tasks\\|ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup|\\AppData\\(Roaming|Local)\\Microsoft\\Windows\\Start Menu\\Programs\\Startup|\\(Shell|Vault)\\|\\system32\\(cmd\.exe|powershell\.exe|wscript\.exe|cscript\.exe|mshta\.exe|regsvr32\.exe|rundll32\.exe|certutil\.exe|bitsadmin\.exe)|\\system32\\drivers\\etc\\(hosts|lmhosts|networks|protocol|services)|\\windows\\(system\.ini|win\.ini)|\\spool\\drivers\\color\\)</field>
     <description>FIM: Cambio crítico en Windows - $(syscheck.path)</description>
@@ -126,7 +126,7 @@
 
   <!-- Cambio crítico en Linux: autenticación, arranque, sudo, SSH, cron, servicios,
        configuración de red y binarios del sistema. Sin /tmp, /var/log ni /dev/shm. -->
-  <rule id="101102" level="10">
+  <rule id="100851" level="10">
     <if_sid>550, 553, 554</if_sid>
     <field name="syscheck.path" type="pcre2">^(/etc/(passwd|shadow|gshadow|group|sudoers(\.d/[^/]+)?|sshd?_config(\.d/[^/]+)?|crontab|cron\.[^/]+|rc\.local|init\.d/[^/]+|systemd/system/[^/]+|pam\.d/[^/]+|security/[^/]+|profile(\.d/[^/]+)?|bash\.bashrc|environment|ld\.so\.[^/]+|securetty|hosts\.(allow|deny)|nsswitch\.conf|resolv\.conf|sysctl\.conf|nginx/[^/]+|apache2/[^/]+|httpd/[^/]+|mysql/[^/]+|postgresql/[^/]+|redis/[^/]+|docker/[^/]+|modules(\.d/[^/]+)?|modprobe\.d/[^/]+|kernel/[^/]+)|(root|home/[^/]+)/\.ssh/[^/]+|(root|home/[^/]+)/(\.bashrc|\.profile|\.bash_profile|\.config/autostart/[^/]+)|/(bin|sbin|usr/bin|usr/sbin|usr/local/bin|usr/local/sbin)/[^/]+|/boot/[^/]+|/lib/modules/|/var/spool/cron/[^/]+)</field>
     <description>FIM: Cambio crítico en Linux - $(syscheck.path)</description>
